@@ -1,24 +1,150 @@
+
 <!doctype html>
-<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fuxine Timer</title>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fuxine Timer</title>
 <style>
-:root{color-scheme:dark}*{box-sizing:border-box}html,body{margin:0;background:transparent;font-family:Arial,sans-serif;color:#fff}#timer{width:max-content;min-width:0;max-width:95vw;padding:15px 20px 17px;text-align:center;border-radius:18px;border:2px solid #dba1cb;background:#191321f5;box-shadow:0 8px 28px #0008, inset 0 0 0 3px #4c304e}h1{font-family:Arial,sans-serif;font-size:20px;margin:0 0 8px;color:#f4a7d1;font-weight:700;letter-spacing:2px;text-transform:uppercase}#clock{font:700 58px/1.1 Georgia,serif;font-variant-numeric:tabular-nums;text-shadow:0 2px 10px #000}#status{min-height:20px;font:15px/20px Arial,sans-serif;color:#eac5e0;margin-top:6px}.done #clock{color:#ffc2d7;animation:pulse .7s 3}@keyframes pulse{50%{transform:scale(1.06)}}
-</style></head><body><div id="timer"><h1>FUXINE · TIMER</h1><div id="clock">00:00</div><div id="status">Bereit</div></div>
+:root{color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;background:transparent;font-family:Arial,sans-serif;color:#fff}
+#timer{width:max-content;max-width:95vw;padding:15px 20px 17px;text-align:center;border-radius:18px;border:2px solid #dba1cb;background:#191321f5;box-shadow:0 8px 28px #0008,inset 0 0 0 3px #4c304e}
+h1{font:700 20px Arial,sans-serif;margin:0 0 8px;color:#f4a7d1;letter-spacing:2px;text-transform:uppercase}
+#clock{font:700 58px/1.1 Georgia,serif;font-variant-numeric:tabular-nums;text-shadow:0 2px 10px #000}
+#status{min-height:20px;font:15px/20px Arial,sans-serif;color:#eac5e0;margin-top:6px}
+.done #clock{color:#ffc2d7;animation:pulse .7s 3}
+@keyframes pulse{50%{transform:scale(1.06)}}
+</style>
+</head>
+<body>
+<div id="timer">
+<h1>FUXINE · TIMER</h1>
+<div id="clock">00:00</div>
+<div id="status">Bereit</div>
+</div>
 <script>
-/* Twitch-Chat ohne zusätzlichen Bot via tmi.js (öffentlicher IRC-Lesezugriff). */
-const CHANNEL='DEIN_TWITCH_KANAL'; // hier Twitch-Kanalname ohne @ eintragen
-const box=document.getElementById('timer'),clock=document.getElementById('clock'),status=document.getElementById('status');
-let remaining=0,deadline=0,running=false,finished=false,audioCtx;
-function format(s){s=Math.max(0,Math.ceil(s));let h=Math.floor(s/3600),m=Math.floor(s%3600/60),sec=s%60;return h?`${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`:`${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`}
+const CHANNEL='fuxine';
+const box=document.getElementById('timer');
+const clock=document.getElementById('clock');
+const status=document.getElementById('status');
+let remaining=0,deadline=0,running=false,audioCtx;
+
+function format(s){
+ s=Math.max(0,Math.ceil(s));
+ let h=Math.floor(s/3600),m=Math.floor(s%3600/60),sec=s%60;
+ return h?`${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`:`${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
 function render(){clock.textContent=format(remaining)}
-function sound(){try{audioCtx??=new(window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume();[0,0.18,0.36].forEach((t,i)=>{let o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sine';o.frequency.value=[659.25,783.99,1046.5][i];o.connect(g);g.connect(audioCtx.destination);let now=audioCtx.currentTime+t;g.gain.setValueAtTime(0.0001,now);g.gain.exponentialRampToValueAtTime(0.16,now+0.015);g.gain.exponentialRampToValueAtTime(0.0001,now+0.32);o.start(now);o.stop(now+0.34)})}catch(e){console.warn('Audio konnte nicht abgespielt werden',e)}}
-function start(seconds){remaining=seconds;deadline=Date.now()+seconds*1000;running=true;finished=false;box.classList.remove('done');status.textContent='Läuft';render()}
-function stop(){if(!running)return;remaining=Math.max(0,(deadline-Date.now())/1000);running=false;status.textContent='Pausiert';render()}
-function resume(){if(running||remaining<=0)return;deadline=Date.now()+remaining*1000;running=true;status.textContent='Läuft'}
-function reset(){remaining=0;running=false;finished=false;box.classList.remove('done');status.textContent='Bereit';render()}
-function parseDuration(value){let v=value.toLowerCase().replace(/\s+/g,'');let rx=/(\d+)(sek(?:unden?)?|s|min(?:uten?)?|m|std|stunden?|h)/gy;let total=0,at=0,match;while((match=rx.exec(v))){if(match.index!==at)return null;at=rx.lastIndex;let unit=match[2];total+=Number(match[1])*(unit.startsWith('h')||unit.startsWith('std')?3600:unit.startsWith('m')?60:1)}return at===v.length&&total>0&&total<=86400?total:null}
-function handleCommand(message){let m=message.trim().match(/^!timer(?:\s+(.+))?$/i);if(!m||!m[1])return;let cmd=m[1].trim().toLowerCase();if(cmd==='stop')stop();else if(cmd==='weiter')resume();else if(cmd==='reset')reset();else{let sec=parseDuration(cmd);if(sec!==null)start(sec)}}
-setInterval(()=>{if(!running)return;remaining=Math.max(0,(deadline-Date.now())/1000);render();if(remaining===0){running=false;finished=true;status.textContent='Zeit abgelaufen!';box.classList.add('done');sound()}},100);
-function connect(){if(CHANNEL==='DEIN_TWITCH_KANAL'){status.textContent='Kanalname in HTML eintragen';return}let ws=new WebSocket('wss://irc-ws.chat.twitch.tv:443');ws.onopen=()=>{ws.send('CAP REQ :twitch.tv/tags twitch.tv/commands');ws.send('NICK justinfan'+Math.floor(Math.random()*900000+100000));ws.send('JOIN #'+CHANNEL.toLowerCase())};ws.onmessage=e=>{for(let line of e.data.split('\r\n')){if(line.startsWith('PING')){ws.send('PONG :tmi.twitch.tv');continue}let p=line.match(/^@([^ ]+) :([^!]+)![^ ]+ PRIVMSG #[^ ]+ :(.+)$/);if(!p)continue;let tags=Object.fromEntries(p[1].split(';').map(s=>{let i=s.indexOf('=');return[s.slice(0,i),s.slice(i+1)]}));let sender=p[2].toLowerCase();if(sender===CHANNEL.toLowerCase()||tags.mod==='1'||(tags.badges||'').split(',').some(x=>x.startsWith('broadcaster/')))handleCommand(p[3])}};ws.onclose=()=>setTimeout(connect,4000);ws.onerror=()=>ws.close()}
+function sound(){
+ try{
+  audioCtx??=new(window.AudioContext||window.webkitAudioContext)();
+  if(audioCtx.state==='suspended')audioCtx.resume();
+  [0,0.18,0.36].forEach((t,i)=>{
+   let o=audioCtx.createOscillator(),g=audioCtx.createGain();
+   o.type='sine';
+   o.frequency.value=[659.25,783.99,1046.5][i];
+   o.connect(g);g.connect(audioCtx.destination);
+   let now=audioCtx.currentTime+t;
+   g.gain.setValueAtTime(0.0001,now);
+   g.gain.exponentialRampToValueAtTime(0.16,now+0.015);
+   g.gain.exponentialRampToValueAtTime(0.0001,now+0.32);
+   o.start(now);o.stop(now+0.34);
+  });
+ }catch(e){console.warn('Audiofehler',e)}
+}
+function start(seconds){
+ remaining=seconds;
+ deadline=Date.now()+seconds*1000;
+ running=true;
+ box.classList.remove('done');
+ status.textContent='Läuft';
+ render();
+}
+function stop(){
+ if(!running)return;
+ remaining=Math.max(0,(deadline-Date.now())/1000);
+ running=false;
+ status.textContent='Pausiert';
+ render();
+}
+function resume(){
+ if(running||remaining<=0)return;
+ deadline=Date.now()+remaining*1000;
+ running=true;
+ status.textContent='Läuft';
+}
+function reset(){
+ remaining=0;running=false;
+ box.classList.remove('done');
+ status.textContent='Bereit';
+ render();
+}
+function parseDuration(value){
+ let v=value.toLowerCase().replace(/\s+/g,'');
+ let rx=/(\d+)(sek(?:unden?)?|s|min(?:uten?)?|m|std|stunden?|h)/gy;
+ let total=0,at=0,match;
+ while((match=rx.exec(v))){
+  if(match.index!==at)return null;
+  at=rx.lastIndex;
+  let unit=match[2];
+  total+=Number(match[1])*(unit.startsWith('h')||unit.startsWith('std')?3600:unit.startsWith('m')?60:1);
+ }
+ return at===v.length&&total>0&&total<=86400?total:null;
+}
+function handleCommand(message){
+ let m=message.trim().match(/^!timer(?:\s+(.+))?$/i);
+ if(!m||!m[1])return;
+ let cmd=m[1].trim().toLowerCase();
+ if(cmd==='stop')stop();
+ else if(cmd==='weiter')resume();
+ else if(cmd==='reset')reset();
+ else{
+  let sec=parseDuration(cmd);
+  if(sec!==null)start(sec);
+ }
+}
+setInterval(()=>{
+ if(!running)return;
+ remaining=Math.max(0,(deadline-Date.now())/1000);
+ render();
+ if(remaining===0){
+  running=false;
+  status.textContent='Zeit abgelaufen!';
+  box.classList.add('done');
+  sound();
+ }
+},100);
+
+function connect(){
+ let ws=new WebSocket('wss://irc-ws.chat.twitch.tv:443');
+ ws.onopen=()=>{
+  ws.send('CAP REQ :twitch.tv/tags twitch.tv/commands');
+  ws.send('NICK justinfan'+Math.floor(Math.random()*900000+100000));
+  ws.send('JOIN #'+CHANNEL);
+ };
+ ws.onmessage=e=>{
+  for(let line of e.data.split('\r\n')){
+   if(line.startsWith('PING')){
+    ws.send('PONG :tmi.twitch.tv');
+    continue;
+   }
+   let p=line.match(/^@([^ ]+) :([^!]+)![^ ]+ PRIVMSG #[^ ]+ :(.+)$/);
+   if(!p)continue;
+   let tags=Object.fromEntries(p[1].split(';').map(s=>{
+    let i=s.indexOf('=');
+    return[s.slice(0,i),s.slice(i+1)];
+   }));
+   let sender=p[2].toLowerCase();
+   if(sender===CHANNEL||tags.mod==='1'||(tags.badges||'').split(',').some(x=>x.startsWith('broadcaster/'))){
+    handleCommand(p[3]);
+   }
+  }
+ };
+ ws.onclose=()=>setTimeout(connect,4000);
+ ws.onerror=()=>ws.close();
+}
 connect();
-// Test im Browser: Konsole -> handleCommand('!timer 10sek')
-</script></body></html>
+</script>
+</body>
+</html>
